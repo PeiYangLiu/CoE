@@ -19,8 +19,8 @@ cd LLaMA-Factory
 Replace the dataset configuration:
 ```bash
 cp path/to/CoE/dataset_info.json data/dataset_info.json
-cp path/to/CoE/screenshots_test.json data/screenshots_test.json
-cp path/to/CoE/screenshots_train.json data/screenshots_train.json
+cp path/to/CoE-Wiki/screenshots_test.json data/screenshots_test.json
+cp path/to/CoE-Wiki/screenshots_train.json data/screenshots_train.json
 cp -r path/to/CoE-Wiki/screenshots_did data/screenshots_did
 ```
 
