@@ -1,6 +1,6 @@
 llamafactory-cli train \
     --stage sft \
-    --model_name_or_path saves/Qwen3-VL-8B-Instruct/full/train_full_batch2_continue \
+    --model_name_or_path CoE-8B \
     --preprocessing_num_workers 16 \
     --finetuning_type full \
     --quantization_method bnb \
@@ -16,7 +16,7 @@ llamafactory-cli train \
     --max_new_tokens 512 \
     --top_p 0.7 \
     --temperature 0.95 \
-    --output_dir saves/Qwen3-VL-8B-Instruct/full/eval_2025-11-05-07-37-27 \
+    --output_dir saves/Qwen3-VL-8B-Instruct/full/predict \
     --trust_remote_code True \
     --ddp_timeout 180000000 \
     --do_predict True
