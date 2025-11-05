@@ -1,0 +1,22 @@
+llamafactory-cli train \
+    --stage sft \
+    --model_name_or_path saves/Qwen3-VL-8B-Instruct/full/train_full_batch2_continue \
+    --preprocessing_num_workers 16 \
+    --finetuning_type full \
+    --quantization_method bnb \
+    --template qwen3_vl_nothink \
+    --flash_attn auto \
+    --dataset_dir data \
+    --eval_dataset screenshots_test \
+    --cutoff_len 1024 \
+    --max_samples 100000 \
+    --per_device_eval_batch_size 2 \
+    --predict_with_generate True \
+    --report_to none \
+    --max_new_tokens 512 \
+    --top_p 0.7 \
+    --temperature 0.95 \
+    --output_dir saves/Qwen3-VL-8B-Instruct/full/eval_2025-11-05-07-37-27 \
+    --trust_remote_code True \
+    --ddp_timeout 180000000 \
+    --do_predict True
