@@ -1,6 +1,6 @@
-# Look In Your Minds: Show Chain of Evidence in Iterative Retrieval Augmented Generation
+# Chain of Evidence: Pixel-Level Visual Attribution for Iterative Retrieval-Augmented Generation
 
-This repository contains the code and models for the paper *"Look In Your Minds: Show Chain of Evidence in Iterative Retrieval Augmented Generation"*.
+This repository contains the code and models for the paper *"Chain of Evidence: Pixel-Level Visual Attribution for Iterative Retrieval-Augmented Generation"*.
 
 ## Usage
 ### 1. Obtain Pretrained Models
