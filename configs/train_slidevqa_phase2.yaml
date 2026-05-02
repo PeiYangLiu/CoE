@@ -1,0 +1,60 @@
+# SlideVQA Phase II: multi-hop Chain-of-Evidence training.
+model:
+  name: "checkpoints/slidevqa_phase1/best"
+  use_flash_attention: true
+  gradient_checkpointing: true
+  torch_dtype: "bfloat16"
+
+data:
+  dataset: "slidevqa"
+  train_file: "data/slidevqa/train_multi_hop.json"
+  val_file: "data/slidevqa/val_multi_hop.json"
+  image_dir: "data/slidevqa/slides"
+  mode: "multi_hop"
+  max_length: 8192
+  image_max_pixels: 1048576
+  train_resolutions: [1024]
+  eval_resolution: 1024
+  candidate:
+    top_k: 5
+    distractor_strategy: "same_deck"
+    shuffle: true
+    seed: 42
+    preserve_evidence_order: true
+  augmentation:
+    spatial: true
+    resolution_variation: true
+    evidence_permutation: true
+
+training:
+  num_epochs: 2
+  learning_rate: 1.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.03
+  per_device_batch_size: 1
+  per_device_eval_batch_size: 1
+  gradient_accumulation_steps: 1
+  max_grad_norm: 1.0
+  lr_scheduler_type: "cosine"
+  save_strategy: "steps"
+  save_steps: 50
+  save_total_limit: 3
+  eval_steps: 50
+  eval_on_start: true
+  logging_steps: 10
+  output_dir: "checkpoints/slidevqa_phase2"
+  seed: 42
+  report_to: ["swanlab"]
+  run_name: "slidevqa_phase2"
+  gen_eval:
+    enabled: true
+    max_samples: -1
+    max_new_tokens: 512
+    repetition_penalty: 1.05
+    iou_thresh: 0.3
+    batch_size: 1
+
+deepspeed:
+  zero_stage: 2
+  offload_optimizer: false
+  offload_param: false

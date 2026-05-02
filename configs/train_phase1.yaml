@@ -1,0 +1,61 @@
+# Wiki-CoE Phase I: single-hop evidence localization.
+model:
+  name: "Qwen/Qwen3-VL-8B-Instruct"
+  use_flash_attention: true
+  gradient_checkpointing: true
+  torch_dtype: "bfloat16"
+
+data:
+  dataset: "wiki_coe"
+  train_file: "data/wiki_coe/train_split_single_hop.dedup.json"
+  val_file: "data/wiki_coe/val_split_single_hop.dedup.json"
+  image_dir: "data/wiki_coe/screenshots"
+  mode: "single_hop"
+  single_hop_include_reasoning: false
+  max_length: 8192
+  image_max_pixels: 1048576
+  train_resolutions: [768, 896, 1024]
+  eval_resolution: 1024
+  augmentation:
+    spatial: true
+    resolution_variation: true
+    evidence_permutation: false
+
+training:
+  num_epochs: 2
+  learning_rate: 1.0e-4
+  weight_decay: 0.01
+  warmup_ratio: 0.03
+  per_device_batch_size: 2
+  per_device_eval_batch_size: 2
+  gradient_accumulation_steps: 2
+  max_grad_norm: 1.0
+  lr_scheduler_type: "cosine"
+  save_strategy: "steps"
+  save_steps: 200
+  save_total_limit: 1  # keep only the latest checkpoint-*; best/ is managed separately
+  eval_steps: 200
+  eval_on_start: true
+  logging_steps: 10
+  output_dir: "checkpoints/coe_phase1"
+  seed: 42
+  report_to: ["swanlab"]
+  run_name: "coe_phase1"
+  best_checkpoint:
+    enabled: true
+    metric: "eval_gen_answer_em"
+    greater_is_better: true
+    dir_name: "best"
+  save_final_model: false
+  gen_eval:
+    enabled: true
+    max_samples: 512
+    max_new_tokens: 256
+    iou_thresh: 0.3
+    batch_size: 4
+    # save per-sample predictions to <output_dir>/eval_preds/step_<N>/rank_<r>.jsonl
+
+deepspeed:
+  zero_stage: 2
+  offload_optimizer: false
+  offload_param: false

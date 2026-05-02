@@ -1,0 +1,54 @@
+# SlideVQA Phase I: single-hop evidence localization.
+model:
+  name: "Qwen/Qwen3-VL-8B-Instruct"
+  use_flash_attention: true
+  gradient_checkpointing: true
+  torch_dtype: "bfloat16"
+
+data:
+  dataset: "slidevqa"
+  train_file: "data/slidevqa/train_single_hop.json"
+  val_file: "data/slidevqa/val_single_hop.json"
+  image_dir: "data/slidevqa/slides"
+  mode: "single_hop"
+  max_length: 4096
+  image_max_pixels: 1048576
+  train_resolutions: [1024]
+  eval_resolution: 1024
+  augmentation:
+    spatial: false
+    resolution_variation: false
+    evidence_permutation: false
+
+training:
+  num_epochs: 4
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.03
+  per_device_batch_size: 6
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 1   # 8 GPUs × 6 = effective bs 48
+  max_grad_norm: 1.0
+  lr_scheduler_type: "cosine"
+  save_strategy: "steps"
+  save_steps: 500
+  save_total_limit: 6
+  eval_steps: 500
+  eval_on_start: true
+  logging_steps: 10
+  output_dir: "checkpoints/slidevqa_phase1"
+  seed: 42
+  report_to: ["swanlab"]
+  run_name: "slidevqa_phase1"
+  gen_eval:
+    enabled: true
+    max_samples: -1
+    max_new_tokens: 384
+    repetition_penalty: 1.05
+    iou_thresh: 0.3
+    batch_size: 4
+
+deepspeed:
+  zero_stage: 2
+  offload_optimizer: false
+  offload_param: false

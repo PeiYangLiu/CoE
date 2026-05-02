@@ -1,0 +1,52 @@
+# Data subdirs (large/binary)
+data/raw/
+data/wiki_coe/
+data/phase1_samples/
+data/slidevqa/
+data/__pycache__/
+
+# Other large dirs
+dataset_audit/
+checkpoints/
+logs/
+outputs/
+wandb/
+*.tar.zst
+*.tar.gz
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# System
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Secrets
+*.pem
+*.key
+.env
+
+# Eval outputs / scratch renders / experiment logs
+eval_out/
+swanlog/
+rendered_step*/
+resize_compare/
+paper.tex
+nohup.out
+*.log
+
+# Backup yaml / orphan history files (not committed)
+configs/*.yaml.bak
+configs/*.before_*
+scripts/*.wrong_*
+
+# Symlinks to large datasets (treated as files by Git)
+data/wiki_coe
+data/slidevqa

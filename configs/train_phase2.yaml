@@ -1,0 +1,59 @@
+# Wiki-CoE Phase II: multi-hop Chain-of-Evidence training.
+model:
+  name: "checkpoints/coe_phase1/best"
+  use_flash_attention: true
+  gradient_checkpointing: true
+  torch_dtype: "bfloat16"
+
+data:
+  dataset: "wiki_coe"
+  train_file: "data/wiki_coe/release_strict_chainsplit_20260428_1338/train.json"
+  val_file: "data/wiki_coe/release_strict_chainsplit_20260428_1338/val_1000_seed42.json"
+  candidate:
+    top_k: 5
+    distractor_strategy: "global"
+    shuffle: true
+    seed: 42
+    preserve_evidence_order: true
+  image_dir: "data/wiki_coe/screenshots_trimmed"
+  mode: "multi_hop"
+  max_length: 8192
+  image_max_pixels: 1048576
+  train_resolutions: [768, 896, 1024]
+  eval_resolution: 1024
+  augmentation:
+    spatial: true
+    resolution_variation: true
+    evidence_permutation: true
+
+training:
+  num_epochs: 1
+  learning_rate: 5.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.03
+  per_device_batch_size: 1
+  per_device_eval_batch_size: 1
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  lr_scheduler_type: "cosine"
+  save_strategy: "steps"
+  save_steps: 400
+  eval_steps: 200
+  logging_steps: 10
+  output_dir: "checkpoints/coe_phase2"
+  seed: 42
+  report_to: ["swanlab"]
+  run_name: "coe_phase2"
+  gen_eval:
+    enabled: true
+    max_samples: 512
+    max_new_tokens: 512
+    iou_thresh: 0.3
+    batch_size: 1
+  dataloader_num_workers: 40
+  dataloader_prefetch_factor: 4
+
+deepspeed:
+  zero_stage: 2
+  offload_optimizer: false
+  offload_param: false
