@@ -4,6 +4,14 @@
 
 CoE is a visual attribution framework that performs multi-hop reasoning directly over document screenshots. Given a question and a top-5 candidate set, it selects the ordered evidence images, localizes supporting regions with bounding boxes, and generates the final answer.
 
+## Resources
+
+- Project homepage: https://lpy.pxsec.cn
+- Paper: https://arxiv.org/abs/2605.01284
+- Wiki-CoE dataset: https://huggingface.co/datasets/PeiyangLiu/wiki-coe
+- CoE-Wiki-CoE-8B checkpoint: https://huggingface.co/PeiyangLiu/CoE-Wiki-CoE-8B
+- CoE-SlideVQA-8B checkpoint: https://huggingface.co/PeiyangLiu/CoE-SlideVQA-8B
+
 ## Architecture
 
 ```
