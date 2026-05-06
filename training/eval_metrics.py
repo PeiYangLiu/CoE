@@ -1,7 +1,7 @@
 """Evaluation metrics for CoE: answer accuracy + relaxed bbox localization.
 
 The model is trained to emit a JSON object:
-    {"answer": "...", "evidence_chain": [{"hop":1,"image_id":"img_0","bboxes":[[x1,y1,x2,y2]], ...}, ...]}
+    {"evidence_chain": [{"hop":1,"image_id":"img_0","bboxes":[[x1,y1,x2,y2]], ...}, ...], "answer": "..."}
 
 Relaxed bbox localization: we do NOT require the predicted box to match the
 ground-truth paragraph bbox exactly. A prediction counts as "correctly located"

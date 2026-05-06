@@ -104,11 +104,10 @@ bash scripts/run_eval.sh slidevqa checkpoints/slidevqa_phase2/best 8
 
 ## Model Output Format
 
-The model generates structured JSON with answer and visual evidence chain:
+The model generates structured JSON with the visual evidence chain followed by the answer:
 
 ```json
 {
-  "answer": "Christopher Nolan",
   "evidence_chain": [
     {
       "hop": 1,
@@ -122,7 +121,8 @@ The model generates structured JSON with answer and visual evidence chain:
       "bboxes": [[200, 156, 640, 210]],
       "sub_query": "nationality of Christopher Nolan"
     }
-  ]
+  ],
+  "answer": "British-American"
 }
 ```
 
@@ -139,10 +139,13 @@ Bounding box coordinates `[x1, y1, x2, y2]` are in pixel space of the selected i
 ## Citation
 
 ```bibtex
-@inproceedings{coe2025,
+@misc{liu2026chainofevidence,
   title={Chain of Evidence: Pixel-Level Visual Attribution for Iterative Retrieval-Augmented Generation},
-  author={...},
-  booktitle={...},
-  year={2025}
+  author={Peiyang Liu and Ziqiang Cui and Xi Wang and Di Liang and Wei Ye},
+  year={2026},
+  eprint={2605.01284},
+  archivePrefix={arXiv},
+  primaryClass={cs.IR},
+  url={https://arxiv.org/abs/2605.01284}
 }
 ```

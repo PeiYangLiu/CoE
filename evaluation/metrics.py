@@ -3,8 +3,8 @@ CoE Evaluation Metrics
 
 Implements the three evaluation dimensions described in the paper:
 1. Exact Match (EM) - answer accuracy
-2. Localization Accuracy (Loc-Acc) - IoU >= 0.7 for bounding boxes
-3. Chain Accuracy (Chain-Acc) - complete reasoning chain correctness
+2. Localization Accuracy (Loc-Acc) - IoU >= 0.3 or predicted center inside the ground-truth box
+3. Chain Accuracy (Chain-Acc) - ordered evidence-image chain correctness
 4. Retrieval metrics (Recall@k, MRR) for the retrieval component
 """
 
@@ -84,21 +84,29 @@ def compute_iou(bbox_pred: List[int], bbox_gt: List[int]) -> float:
     return intersection / union
 
 
+def center_inside(bbox_pred: List[int], bbox_gt: List[int]) -> bool:
+    """Return True if the predicted box center falls inside the ground-truth box."""
+    cx = (bbox_pred[0] + bbox_pred[2]) / 2
+    cy = (bbox_pred[1] + bbox_pred[3]) / 2
+    return bbox_gt[0] <= cx <= bbox_gt[2] and bbox_gt[1] <= cy <= bbox_gt[3]
+
+
 def localization_accuracy(
     pred_bboxes: List[List[int]],
     gt_bboxes: List[List[int]],
-    iou_threshold: float = 0.7,
+    iou_threshold: float = 0.3,
 ) -> Tuple[float, List[float]]:
     """
-    Compute localization accuracy using greedy IoU matching.
+    Compute localization accuracy using relaxed greedy matching.
     
     For each ground-truth bbox, find the best matching predicted bbox.
-    A localization is correct if IoU >= threshold.
+    A localization is correct if IoU >= threshold or the predicted box center
+    falls inside the ground-truth box, matching the paper evaluation protocol.
     
     Args:
         pred_bboxes: list of predicted [x1, y1, x2, y2]
         gt_bboxes: list of ground-truth [x1, y1, x2, y2]
-        iou_threshold: IoU threshold (default 0.7)
+        iou_threshold: IoU threshold (default 0.3)
         
     Returns:
         (accuracy, list of per-bbox IoU scores)
@@ -109,29 +117,34 @@ def localization_accuracy(
     if not pred_bboxes:
         return 0.0, [0.0] * len(gt_bboxes)
 
-    # Compute IoU matrix
+    # Compute match and IoU matrices
     iou_matrix = np.zeros((len(gt_bboxes), len(pred_bboxes)))
+    match_matrix = np.zeros((len(gt_bboxes), len(pred_bboxes)), dtype=bool)
     for i, gt in enumerate(gt_bboxes):
         for j, pred in enumerate(pred_bboxes):
-            iou_matrix[i, j] = compute_iou(pred, gt)
+            iou = compute_iou(pred, gt)
+            iou_matrix[i, j] = iou
+            match_matrix[i, j] = iou >= iou_threshold or center_inside(pred, gt)
 
-    # Greedy matching: for each GT, find best unmatched pred
+    # Greedy matching: for each GT, prefer a relaxed match with highest IoU.
     matched_ious = []
+    matched_correct = []
     used_preds = set()
 
     for i in range(len(gt_bboxes)):
         best_iou = 0.0
         best_j = -1
         for j in range(len(pred_bboxes)):
-            if j not in used_preds and iou_matrix[i, j] > best_iou:
+            if j not in used_preds and match_matrix[i, j] and iou_matrix[i, j] >= best_iou:
                 best_iou = iou_matrix[i, j]
                 best_j = j
 
         matched_ious.append(best_iou)
+        matched_correct.append(best_j >= 0)
         if best_j >= 0:
             used_preds.add(best_j)
 
-    correct = sum(1 for iou in matched_ious if iou >= iou_threshold)
+    correct = sum(1 for ok in matched_correct if ok)
     accuracy = correct / len(gt_bboxes)
     return accuracy, matched_ious
 
@@ -143,16 +156,17 @@ def localization_accuracy(
 def chain_accuracy(
     pred_chain: List[dict],
     gt_chain: List[dict],
-    iou_threshold: float = 0.7,
+    iou_threshold: float = 0.3,
 ) -> Tuple[float, Dict[str, float]]:
     """
-    Compute chain accuracy: all hops must be correctly localized.
+    Compute chain accuracy: all hops must select the correct image, when
+    image IDs are available, and correctly localize the evidence.
     
     Args:
         pred_chain: list of predicted evidence steps
             [{"image_id": "img_0", "bboxes": [[x1,y1,x2,y2]]}]
         gt_chain: list of ground-truth evidence steps
-            [{"entity": "...", "bboxes": [[x1,y1,x2,y2]]}]
+            [{"image_id": "img_0", "bboxes": [[x1,y1,x2,y2]]}]
             
     Returns:
         (chain_acc, details) where chain_acc is 1.0 if all hops correct
@@ -165,18 +179,26 @@ def chain_accuracy(
     for hop_idx, gt_step in enumerate(gt_chain):
         gt_bboxes = gt_step.get("bboxes", [])
 
-        # Match to predicted chain by hop index
+        # Match to predicted chain by hop index.
         if hop_idx < len(pred_chain):
             pred_step = pred_chain[hop_idx]
             pred_bboxes = pred_step.get("bboxes", [])
         else:
+            pred_step = {}
             pred_bboxes = []
 
-        hop_acc, hop_ious = localization_accuracy(pred_bboxes, gt_bboxes, iou_threshold)
+        gt_img = str(gt_step.get("image_id", "") or "")
+        pred_img = str(pred_step.get("image_id", "") or "")
+        image_correct = not gt_img or not pred_img or pred_img == gt_img
+        if image_correct:
+            hop_acc, hop_ious = localization_accuracy(pred_bboxes, gt_bboxes, iou_threshold)
+        else:
+            hop_acc, hop_ious = 0.0, [0.0] * len(gt_bboxes)
         per_hop_results.append({
             "hop": hop_idx + 1,
             "accuracy": hop_acc,
             "ious": hop_ious,
+            "image_correct": image_correct,
             "correct": hop_acc == 1.0,
         })
 
@@ -221,7 +243,7 @@ def mean_reciprocal_rank(
 def evaluate_coe(
     predictions: List[dict],
     ground_truths: List[dict],
-    iou_threshold: float = 0.7,
+    iou_threshold: float = 0.3,
 ) -> Dict[str, float]:
     """
     Run full CoE evaluation on a set of predictions.
