@@ -51,6 +51,9 @@ configs/*service*.yaml
 # Paper source/build artifacts kept outside the public code release
 img/
 
+# Local serving uploads/logs
+service/runtime/
+
 # Symlinks to large datasets (treated as files by Git)
 data/wiki_coe
 data/slidevqa

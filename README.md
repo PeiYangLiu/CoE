@@ -102,6 +102,18 @@ bash scripts/run_eval.sh slidevqa checkpoints/slidevqa_phase2/best 8
 - **Loc-Acc**: Joint image-and-box localization accuracy. A box match is accepted when IoU >= 0.3 or the predicted center falls inside the ground-truth region.
 - **Chain-Acc**: Ordered evidence-image chain accuracy.
 
+## SlideVQA Web/API Service
+
+Start a local web UI and HTTP API for SlideVQA-style inference:
+
+```bash
+COE_API_TOKEN=change-me bash scripts/run_slidevqa_server.sh
+```
+
+Then open `http://localhost:7860`. By default the service uses `PeiyangLiu/CoE-SlideVQA-8B` and one visible GPU (`CUDA_VISIBLE_DEVICES=1`). Override the runtime with `COE_MODEL_PATH`, `COE_PROCESSOR_PATH`, `CUDA_VISIBLE_DEVICES`, and `PYTHON_BIN`.
+
+The API supports PDF and slide-image uploads. PPT/PPTX uploads are supported only when LibreOffice/`soffice` is installed on the server; otherwise export the deck to PDF first.
+
 ## Model Output Format
 
 The model generates structured JSON with the visual evidence chain followed by the answer:

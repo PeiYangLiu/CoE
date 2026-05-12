@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CoE SlideVQA</title>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f7fb; color: #172033; }
+    header { padding: 24px 32px; background: #111827; color: white; }
+    header h1 { margin: 0 0 6px; font-size: 24px; }
+    header p { margin: 0; color: #cbd5e1; }
+    main { max-width: 1180px; margin: 0 auto; padding: 24px; display: grid; gap: 18px; }
+    .card { background: white; border: 1px solid #e5e7eb; border-radius: 14px; padding: 18px; box-shadow: 0 8px 28px rgba(15, 23, 42, 0.05); }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    label { font-weight: 650; }
+    input[type="text"], input[type="password"], input[type="number"], textarea {
+      border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; font: inherit; width: 100%;
+      box-sizing: border-box;
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    button { border: 0; border-radius: 10px; padding: 10px 16px; background: #2563eb; color: white; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .muted { color: #64748b; font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+    .slide { border: 1px solid #e5e7eb; border-radius: 12px; padding: 8px; background: #fafafa; }
+    .slide img { width: 100%; display: block; border-radius: 8px; border: 1px solid #e5e7eb; background: white; }
+    .answer { font-size: 20px; font-weight: 750; margin: 8px 0; }
+    pre { overflow: auto; background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 12px; }
+    .evidence { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .evidence-item { border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; background: #fff; }
+    .image-wrap { position: relative; width: 100%; }
+    .image-wrap img { width: 100%; display: block; border-radius: 8px; }
+    .bbox { position: absolute; border: 3px solid #ef4444; background: rgba(239, 68, 68, 0.12); box-sizing: border-box; pointer-events: none; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>CoE SlideVQA</h1>
+    <p>Upload slides, ask a question, and get an answer with visual evidence boxes.</p>
+  </header>
+  <main>
+    <section class="card">
+      <div class="row">
+        <div style="flex: 1 1 260px">
+          <label>API token</label>
+          <input id="token" type="password" placeholder="Optional Bearer token" />
+        </div>
+        <div style="flex: 1 1 160px">
+          <label>Top-K slides</label>
+          <input id="topK" type="number" min="1" max="20" value="20" />
+        </div>
+        <button id="healthBtn">Check health</button>
+      </div>
+      <p class="muted" id="health"></p>
+    </section>
+
+    <section class="card">
+      <label>Upload PDF, slide images, or PPT/PPTX if LibreOffice is installed</label>
+      <div class="row" style="margin-top: 10px">
+        <input id="files" type="file" multiple accept=".pdf,.ppt,.pptx,.png,.jpg,.jpeg,.webp,.bmp" />
+        <button id="uploadBtn">Upload</button>
+      </div>
+      <p class="muted" id="uploadStatus"></p>
+      <div id="slides" class="grid"></div>
+    </section>
+
+    <section class="card">
+      <label>Question</label>
+      <textarea id="question" placeholder="What does this slide deck say about ...?"></textarea>
+      <p class="muted">Optional: tick slide checkboxes above to force specific candidate slides. Otherwise the server sends all slides if the deck fits Top-K, or uses text-based preselection for longer decks.</p>
+      <button id="askBtn" disabled>Ask CoE</button>
+    </section>
+
+    <section id="resultCard" class="card hidden">
+      <h2>Result</h2>
+      <div class="answer" id="answer"></div>
+      <p class="muted" id="selection"></p>
+      <div id="evidence" class="evidence"></div>
+      <h3>Raw JSON</h3>
+      <pre id="raw"></pre>
+    </section>
+  </main>
+
+  <script>
+    let sessionId = null;
+    let slides = [];
+    let lastResult = null;
+
+    const $ = (id) => document.getElementById(id);
+    const authHeaders = () => {
+      const token = $("token").value.trim();
+      localStorage.setItem("coe_token", token);
+      return token ? { "Authorization": `Bearer ${token}` } : {};
+    };
+    $("token").value = localStorage.getItem("coe_token") || "";
+
+    async function api(path, opts = {}) {
+      opts.headers = { ...(opts.headers || {}), ...authHeaders() };
+      const res = await fetch(path, opts);
+      const text = await res.text();
+      let body = {};
+      try { body = text ? JSON.parse(text) : {}; } catch { body = { detail: text }; }
+      if (!res.ok) throw new Error(body.detail || res.statusText);
+      return body;
+    }
+
+    function renderSlides() {
+      const root = $("slides");
+      root.innerHTML = "";
+      for (const slide of slides) {
+        const div = document.createElement("div");
+        div.className = "slide";
+        div.innerHTML = `
+          <label><input type="checkbox" class="slideCheck" value="${slide.index}"> slide ${slide.index}</label>
+          <img src="${slide.url}" alt="slide ${slide.index}">
+        `;
+        root.appendChild(div);
+      }
+    }
+
+    function candidateByImageId(imageId) {
+      return (lastResult?.candidates || []).find(c => c.image_id === imageId);
+    }
+
+    function renderEvidence() {
+      const root = $("evidence");
+      root.innerHTML = "";
+      const chain = lastResult.evidence_chain || [];
+      if (!chain.length) {
+        root.innerHTML = `<p class="muted">No evidence_chain was returned.</p>`;
+        return;
+      }
+      for (const hop of chain) {
+        const cand = candidateByImageId(hop.image_id);
+        const item = document.createElement("div");
+        item.className = "evidence-item";
+        if (!cand) {
+          item.textContent = `Hop ${hop.hop}: ${hop.image_id}`;
+          root.appendChild(item);
+          continue;
+        }
+        item.innerHTML = `
+          <strong>Hop ${hop.hop}: ${hop.image_id} → slide ${cand.index}</strong>
+          <p class="muted">${hop.sub_query || ""}</p>
+          <div class="image-wrap"><img src="${cand.url}" alt="evidence slide"></div>
+        `;
+        const wrap = item.querySelector(".image-wrap");
+        const img = wrap.querySelector("img");
+        img.onload = () => {
+          const shownW = img.clientWidth;
+          const shownH = img.clientHeight;
+          for (const box of (hop.bboxes || [])) {
+            const [x1, y1, x2, y2] = box.map(Number);
+            const b = document.createElement("div");
+            b.className = "bbox";
+            b.style.left = `${x1 / cand.model_width * shownW}px`;
+            b.style.top = `${y1 / cand.model_height * shownH}px`;
+            b.style.width = `${(x2 - x1) / cand.model_width * shownW}px`;
+            b.style.height = `${(y2 - y1) / cand.model_height * shownH}px`;
+            wrap.appendChild(b);
+          }
+        };
+        root.appendChild(item);
+      }
+    }
+
+    $("healthBtn").onclick = async () => {
+      $("health").textContent = "Checking...";
+      try {
+        const h = await api("/api/health");
+        $("health").textContent = `OK · model_loaded=${h.model_loaded} · model=${h.model_name} · top_k=${h.top_k_default}`;
+      } catch (e) {
+        $("health").textContent = e.message;
+      }
+    };
+
+    $("uploadBtn").onclick = async () => {
+      const fs = $("files").files;
+      if (!fs.length) return;
+      const form = new FormData();
+      for (const f of fs) form.append("files", f);
+      $("uploadBtn").disabled = true;
+      $("uploadStatus").textContent = "Uploading and rendering slides...";
+      try {
+        const out = await api("/api/upload", { method: "POST", body: form });
+        sessionId = out.session_id;
+        slides = out.slides;
+        $("uploadStatus").textContent = `Loaded ${out.slide_count} slides. Session: ${sessionId}`;
+        $("askBtn").disabled = false;
+        renderSlides();
+      } catch (e) {
+        $("uploadStatus").textContent = e.message;
+      } finally {
+        $("uploadBtn").disabled = false;
+      }
+    };
+
+    $("askBtn").onclick = async () => {
+      const question = $("question").value.trim();
+      if (!sessionId || !question) return;
+      const checked = [...document.querySelectorAll(".slideCheck:checked")].map(x => Number(x.value));
+      $("askBtn").disabled = true;
+      $("answer").textContent = "Running inference...";
+      $("resultCard").classList.remove("hidden");
+      try {
+        const payload = {
+          session_id: sessionId,
+          question,
+          top_k: Number($("topK").value || 20),
+          slide_indices: checked.length ? checked : null,
+        };
+        lastResult = await api("/api/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        $("answer").textContent = lastResult.answer || "(empty answer)";
+        $("selection").textContent = `Selection: ${lastResult.selection_reason}; candidates: ${(lastResult.candidates || []).map(c => `${c.image_id}=slide ${c.index}`).join(", ")}`;
+        $("raw").textContent = JSON.stringify(lastResult, null, 2);
+        renderEvidence();
+      } catch (e) {
+        $("answer").textContent = e.message;
+      } finally {
+        $("askBtn").disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>

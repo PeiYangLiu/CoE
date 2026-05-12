@@ -1,0 +1,2 @@
+"""SlideVQA serving package."""
+
