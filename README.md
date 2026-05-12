@@ -102,26 +102,6 @@ bash scripts/run_eval.sh slidevqa checkpoints/slidevqa_phase2/best 8
 - **Loc-Acc**: Joint image-and-box localization accuracy. A box match is accepted when IoU >= 0.3 or the predicted center falls inside the ground-truth region.
 - **Chain-Acc**: Ordered evidence-image chain accuracy.
 
-## SlideVQA Web/API Service
-
-Start a local web UI and HTTP API for SlideVQA-style inference:
-
-```bash
-COE_API_TOKEN=change-me bash scripts/run_slidevqa_server.sh
-```
-
-Then open `http://localhost:7860`. By default the service uses `PeiyangLiu/CoE-SlideVQA-8B` and one visible GPU (`CUDA_VISIBLE_DEVICES=1`). Override the runtime with `COE_MODEL_PATH`, `COE_PROCESSOR_PATH`, `CUDA_VISIBLE_DEVICES`, and `PYTHON_BIN`.
-
-The API supports PDF and slide-image uploads. PPT/PPTX uploads are supported only when LibreOffice/`soffice` is installed on the server; otherwise export the deck to PDF first.
-
-For multi-GPU serving, run one model replica per GPU behind the built-in gateway:
-
-```bash
-COE_SERVER_MODE=multi COE_CUDA_DEVICES=4,5,6,7 COE_API_TOKEN=change-me bash scripts/run_slidevqa_server.sh
-```
-
-The gateway exposes the public port, keeps a bounded inference queue, forwards one request at a time to each GPU backend, and caches deterministic responses. Generation defaults mirror the validation pipeline (`COE_MAX_NEW_TOKENS=512`, `COE_REPETITION_PENALTY=1.05`). Runtime uploads, logs, and PID files live under `service/runtime/`.
-
 ## Model Output Format
 
 The model generates structured JSON with the visual evidence chain followed by the answer:
