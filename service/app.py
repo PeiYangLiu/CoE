@@ -16,7 +16,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -44,6 +44,7 @@ class Settings:
     sessions_dir = runtime_dir / "sessions"
     max_file_mb = int(os.environ.get("COE_MAX_FILE_MB", "150"))
     max_session_mb = int(os.environ.get("COE_MAX_SESSION_MB", "300"))
+    upload_concurrency = int(os.environ.get("COE_UPLOAD_CONCURRENCY", "2"))
     max_pages = int(os.environ.get("COE_MAX_PAGES", "120"))
     pdf_dpi = int(os.environ.get("COE_PDF_DPI", "150"))
     session_ttl_seconds = int(os.environ.get("COE_SESSION_TTL_SECONDS", str(24 * 3600)))
@@ -60,6 +61,7 @@ class Settings:
 
 
 settings = Settings()
+_upload_semaphore = asyncio.Semaphore(settings.upload_concurrency)
 
 
 def _first_existing_model() -> str:
@@ -459,20 +461,32 @@ async def _create_session_from_uploads(files: List[UploadFile]) -> dict:
     slides: List[dict] = []
     try:
         for upload in files:
-            data = await upload.read()
-            total_bytes += len(data)
-            if len(data) > settings.max_file_mb * 1024 * 1024:
+            chunks: List[bytes] = []
+            file_bytes = 0
+            while True:
+                chunk = await upload.read(1024 * 1024)
+                if not chunk:
+                    break
+                file_bytes += len(chunk)
+                total_bytes += len(chunk)
+                if file_bytes > settings.max_file_mb * 1024 * 1024:
+                    raise HTTPException(status_code=400, detail=f"{upload.filename} exceeds {settings.max_file_mb} MB")
+                if total_bytes > settings.max_session_mb * 1024 * 1024:
+                    raise HTTPException(status_code=400, detail=f"Session upload exceeds {settings.max_session_mb} MB")
+                chunks.append(chunk)
+            data = b"".join(chunks)
+            if not data:
+                raise HTTPException(status_code=400, detail=f"{upload.filename or 'upload'} is empty")
+            if file_bytes > settings.max_file_mb * 1024 * 1024:
                 raise HTTPException(status_code=400, detail=f"{upload.filename} exceeds {settings.max_file_mb} MB")
-            if total_bytes > settings.max_session_mb * 1024 * 1024:
-                raise HTTPException(status_code=400, detail=f"Session upload exceeds {settings.max_session_mb} MB")
             suffix = Path(upload.filename or "").suffix.lower()
             source = Path(upload.filename or "upload").name
             if suffix in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}:
-                _render_image_bytes(data, slides_dir, slides, source)
+                await run_in_threadpool(_render_image_bytes, data, slides_dir, slides, source)
             elif suffix == ".pdf":
-                _render_pdf_bytes(data, slides_dir, slides, source)
+                await run_in_threadpool(_render_pdf_bytes, data, slides_dir, slides, source)
             elif suffix in {".ppt", ".pptx"}:
-                _render_ppt_bytes(data, suffix, slides_dir, slides, source)
+                await run_in_threadpool(_render_ppt_bytes, data, suffix, slides_dir, slides, source)
             else:
                 raise HTTPException(status_code=400, detail=f"Unsupported file type: {suffix or 'unknown'}")
 
@@ -541,7 +555,8 @@ def _candidate_paths(session_id: str, candidates: List[dict]) -> List[Path]:
 @app.on_event("startup")
 async def startup() -> None:
     settings.runtime_dir.mkdir(parents=True, exist_ok=True)
-    _cleanup_old_sessions()
+    if os.environ.get("COE_DISABLE_CLEANUP") != "1":
+        _cleanup_old_sessions()
     if settings.preload_model:
         await runtime.ensure_loaded()
     if not settings.api_token:
@@ -575,9 +590,23 @@ def status() -> dict:
     }
 
 
+def _check_content_length(request: Request) -> None:
+    value = request.headers.get("content-length")
+    if not value:
+        return
+    try:
+        n_bytes = int(value)
+    except ValueError:
+        return
+    if n_bytes > settings.max_session_mb * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"Upload exceeds {settings.max_session_mb} MB")
+
+
 @app.post("/api/upload")
-async def upload(files: List[UploadFile] = File(...), _: None = Depends(require_auth)) -> dict:
-    manifest = await _create_session_from_uploads(files)
+async def upload(request: Request, files: List[UploadFile] = File(...), _: None = Depends(require_auth)) -> dict:
+    _check_content_length(request)
+    async with _upload_semaphore:
+        manifest = await _create_session_from_uploads(files)
     return {
         "session_id": manifest["session_id"],
         "slides": manifest["slides"],
@@ -619,12 +648,15 @@ async def ask(req: AskRequest, _: None = Depends(require_auth)) -> dict:
 
 @app.post("/api/answer")
 async def answer(
+    request: Request,
     question: str = Form(...),
     top_k: int = Form(default=settings.default_top_k),
     files: List[UploadFile] = File(...),
     _: None = Depends(require_auth),
 ) -> dict:
-    manifest = await _create_session_from_uploads(files)
+    _check_content_length(request)
+    async with _upload_semaphore:
+        manifest = await _create_session_from_uploads(files)
     req = AskRequest(session_id=manifest["session_id"], question=question, top_k=top_k)
     return await ask(req)
 

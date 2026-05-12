@@ -114,6 +114,14 @@ Then open `http://localhost:7860`. By default the service uses `PeiyangLiu/CoE-S
 
 The API supports PDF and slide-image uploads. PPT/PPTX uploads are supported only when LibreOffice/`soffice` is installed on the server; otherwise export the deck to PDF first.
 
+For multi-GPU serving, run one model replica per GPU behind the built-in gateway:
+
+```bash
+COE_SERVER_MODE=multi COE_CUDA_DEVICES=4,5,6,7 COE_API_TOKEN=change-me bash scripts/run_slidevqa_server.sh
+```
+
+The gateway exposes the public port, keeps a bounded inference queue, forwards one request at a time to each GPU backend, and caches deterministic responses. Runtime uploads, logs, and PID files live under `service/runtime/`.
+
 ## Model Output Format
 
 The model generates structured JSON with the visual evidence chain followed by the answer:
