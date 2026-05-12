@@ -52,7 +52,8 @@ class Settings:
     max_top_k = int(os.environ.get("COE_MAX_TOP_K", "20"))
     eval_resolution = int(os.environ.get("COE_EVAL_RESOLUTION", "1024"))
     image_max_pixels = int(os.environ.get("COE_IMAGE_MAX_PIXELS", str(1024 * 1024)))
-    max_new_tokens = int(os.environ.get("COE_MAX_NEW_TOKENS", "1024"))
+    max_new_tokens = int(os.environ.get("COE_MAX_NEW_TOKENS", "512"))
+    repetition_penalty = float(os.environ.get("COE_REPETITION_PENALTY", "1.05"))
     torch_dtype = os.environ.get("COE_TORCH_DTYPE", "bfloat16")
     api_token = os.environ.get("COE_API_TOKEN", "")
     public_model_name = os.environ.get("COE_PUBLIC_MODEL_NAME", "CoE-SlideVQA-8B")
@@ -126,6 +127,7 @@ class AskRequest(BaseModel):
         description="Optional 1-based slide indices to send to the model.",
     )
     max_new_tokens: Optional[int] = None
+    repetition_penalty: Optional[float] = None
     temperature: float = 0.0
 
 
@@ -200,6 +202,7 @@ class ModelRuntime:
         image_paths: List[Path],
         *,
         max_new_tokens: int,
+        repetition_penalty: float,
         temperature: float,
     ) -> Tuple[dict, List[dict]]:
         await self.ensure_loaded()
@@ -209,6 +212,7 @@ class ModelRuntime:
                 question,
                 image_paths,
                 max_new_tokens,
+                repetition_penalty,
                 temperature,
             )
 
@@ -217,6 +221,7 @@ class ModelRuntime:
         question: str,
         image_paths: List[Path],
         max_new_tokens: int,
+        repetition_penalty: float,
         temperature: float,
     ) -> Tuple[dict, List[dict]]:
         import torch
@@ -269,6 +274,7 @@ class ModelRuntime:
             "max_new_tokens": max_new_tokens,
             "do_sample": temperature > 0,
             "num_beams": 1,
+            "repetition_penalty": repetition_penalty,
             "pad_token_id": tokenizer.pad_token_id or tokenizer.eos_token_id,
             "eos_token_id": tokenizer.eos_token_id,
         }
@@ -578,6 +584,8 @@ def health() -> dict:
         "top_k_max": settings.max_top_k,
         "eval_resolution": settings.eval_resolution,
         "image_max_pixels": settings.image_max_pixels,
+        "max_new_tokens": settings.max_new_tokens,
+        "repetition_penalty": settings.repetition_penalty,
     }
 
 
@@ -624,6 +632,7 @@ async def ask(req: AskRequest, _: None = Depends(require_auth)) -> dict:
         req.question,
         image_paths,
         max_new_tokens=req.max_new_tokens or settings.max_new_tokens,
+        repetition_penalty=req.repetition_penalty or settings.repetition_penalty,
         temperature=req.temperature,
     )
     response_candidates = []

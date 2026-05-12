@@ -120,7 +120,7 @@ For multi-GPU serving, run one model replica per GPU behind the built-in gateway
 COE_SERVER_MODE=multi COE_CUDA_DEVICES=4,5,6,7 COE_API_TOKEN=change-me bash scripts/run_slidevqa_server.sh
 ```
 
-The gateway exposes the public port, keeps a bounded inference queue, forwards one request at a time to each GPU backend, and caches deterministic responses. Runtime uploads, logs, and PID files live under `service/runtime/`.
+The gateway exposes the public port, keeps a bounded inference queue, forwards one request at a time to each GPU backend, and caches deterministic responses. Generation defaults mirror the validation pipeline (`COE_MAX_NEW_TOKENS=512`, `COE_REPETITION_PENALTY=1.05`). Runtime uploads, logs, and PID files live under `service/runtime/`.
 
 ## Model Output Format
 

@@ -158,6 +158,7 @@ def _cache_key(req: AskRequest) -> str:
         "top_k": top_k,
         "slide_indices": slide_indices,
         "max_new_tokens": req.max_new_tokens or settings.max_new_tokens,
+        "repetition_penalty": req.repetition_penalty or settings.repetition_penalty,
         "temperature": float(req.temperature or 0.0),
     }
     return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
@@ -365,6 +366,8 @@ def health() -> dict:
         "top_k_max": settings.max_top_k,
         "eval_resolution": settings.eval_resolution,
         "image_max_pixels": settings.image_max_pixels,
+        "max_new_tokens": settings.max_new_tokens,
+        "repetition_penalty": settings.repetition_penalty,
     }
 
 

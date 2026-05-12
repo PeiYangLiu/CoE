@@ -169,7 +169,7 @@
       $("health").textContent = "Checking...";
       try {
         const h = await api("/api/health");
-        $("health").textContent = `OK · ready_backends=${h.ready_backends ?? (h.model_loaded ? 1 : 0)}/${h.total_backends ?? 1} · model=${h.model_name} · top_k=${h.top_k_default}`;
+        $("health").textContent = `OK · ready_backends=${h.ready_backends ?? (h.model_loaded ? 1 : 0)}/${h.total_backends ?? 1} · model=${h.model_name} · top_k=${h.top_k_default} · max_new_tokens=${h.max_new_tokens}`;
       } catch (e) {
         $("health").textContent = e.message;
       }
